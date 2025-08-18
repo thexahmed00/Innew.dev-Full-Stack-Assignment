@@ -17,6 +17,9 @@ import {
 } from "@/components/ui/card";
 import { Smartphone, ArrowLeft, Mail, Lock } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { createSupabaseClient } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 const signUpSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -42,6 +45,8 @@ export function SignUpForm() {
       password: "",
     }
   );
+  const router = useRouter();
+  const supabase = createSupabaseClient();
 
   const signUpForm = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
@@ -55,33 +60,73 @@ export function SignUpForm() {
     setIsLoading(true);
     setUserData(data);
 
-    // Simulate API call for user registration
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const { error } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
 
-    setIsLoading(false);
-    setAuthMethod("otp");
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      toast.success("Check your email to confirm your account!");
+      setAuthMethod("otp");
+    } catch (err) {
+      toast.error("An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const onOtpSubmit = async (_data: OtpFormData) => {
+  const onOtpSubmit = async (data: OtpFormData) => {
     setIsLoading(true);
 
-    // Simulate OTP verification and account creation
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: userData.email,
+        token: data.otp,
+        type: "signup",
+      });
 
-    setIsLoading(false);
-    // Handle successful account creation
-    console.log("Account created successfully");
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      toast.success("Account created successfully!");
+      router.push("/dashboard");
+    } catch (err) {
+      toast.error("An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const onGoogleSignUp = async () => {
     setIsLoading(true);
 
-    // Simulate Google OAuth
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
 
-    setIsLoading(false);
-    // Handle Google sign up
-    console.log("Google sign up successful");
+      if (error) {
+        toast.error(error.message);
+        setIsLoading(false);
+      }
+      // Note: loading will continue until redirect happens
+    } catch (err) {
+      toast.error("An unexpected error occurred");
+      setIsLoading(false);
+    }
   };
 
   const handleBackToEmail = () => {
@@ -104,9 +149,9 @@ export function SignUpForm() {
               Back
             </Button>
           </div>
-          <CardTitle className="text-2xl">Verify your email</CardTitle>
+          <CardTitle className="text-2xl">Check your email</CardTitle>
           <CardDescription>
-            We&apos;ve sent a 6-digit code to {userData.email}
+            We&apos;ve sent a confirmation link to {userData.email}. Click the link or enter the verification code below.
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -16,8 +16,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Mail, Smartphone, ArrowLeft, Lock } from "lucide-react";
+import { Mail, ArrowLeft, Lock } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { createSupabaseClient } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 const signInSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -40,6 +43,8 @@ export function SignInForm() {
   );
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
+  const router = useRouter();
+  const supabase = createSupabaseClient();
 
   const signInForm = useForm<SignInFormData>({
     resolver: zodResolver(signInSchema),
@@ -53,44 +58,100 @@ export function SignInForm() {
     setIsLoading(true);
     setEmail(data.email);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      });
 
-    setIsLoading(false);
-    setAuthMethod("otp");
+      if (error) {
+        if (error.message === "Email not confirmed") {
+          toast.error("Please check your email and confirm your account first.");
+        } else {
+          toast.error(error.message);
+        }
+        return;
+      }
+
+      toast.success("Signed in successfully!");
+      router.push("/dashboard");
+    } catch (err) {
+      toast.error("An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const onOtpSubmit = async (_data: OtpFormData) => {
+  const onOtpSubmit = async (data: OtpFormData) => {
     setIsLoading(true);
 
-    // Simulate OTP verification
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email,
+        token: data.otp,
+        type: "email",
+      });
 
-    setIsLoading(false);
-    // Handle successful OTP verification
-    console.log("OTP verified successfully");
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      toast.success("OTP verified successfully!");
+      router.push("/dashboard");
+    } catch (err) {
+      toast.error("An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const onMagicLinkSubmit = async (_data: SignInFormData) => {
+  const onMagicLinkSubmit = async (data: SignInFormData) => {
     setIsLoading(true);
+    setEmail(data.email);
 
-    // Simulate magic link sending
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: data.email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
 
-    setIsLoading(false);
-    // Handle magic link sent
-    console.log("Magic link sent successfully");
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      toast.success("Magic link sent! Check your email.");
+      setAuthMethod("otp");
+    } catch (err) {
+      toast.error("An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const onGoogleSignIn = async () => {
     setIsLoading(true);
 
-    // Simulate Google OAuth
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
 
-    setIsLoading(false);
-    // Handle Google sign in
-    console.log("Google sign in successful");
+      if (error) {
+        toast.error(error.message);
+        setIsLoading(false);
+      }
+      // Note: loading will continue until redirect happens
+    } catch (err) {
+      toast.error("An unexpected error occurred");
+      setIsLoading(false);
+    }
   };
 
   const handleBackToEmail = () => {
@@ -203,9 +264,9 @@ export function SignInForm() {
               {isLoading ? (
                 <Spinner className="mr-2 h-4 w-4" />
               ) : (
-                <Smartphone className="mr-2 h-4 w-4" />
+                <Lock className="mr-2 h-4 w-4" />
               )}
-              {isLoading ? "Sending OTP..." : "Send OTP"}
+              {isLoading ? "Signing In..." : "Sign In"}
             </Button>
 
             <Button
