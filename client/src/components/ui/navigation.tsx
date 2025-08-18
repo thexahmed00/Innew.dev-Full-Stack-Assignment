@@ -2,8 +2,21 @@
 
 import Link from "next/link"
 import { Button } from "./button"
+import { useAuth } from "@/contexts/auth-context"
+import { toast } from "sonner"
 
 export function Navigation() {
+  const { user, signOut, loading } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      toast.success("Logged out successfully");
+    } catch (error) {
+      toast.error("Error logging out");
+    }
+  };
+
   return (
     <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 items-center">
@@ -30,16 +43,42 @@ export function Navigation() {
           <div className="w-full flex-1 md:w-auto md:flex-none">
           </div>
           <nav className="flex items-center space-x-2">
-            <Link href="/auth">
-              <Button variant="ghost" size="sm">
-                Sign In
-              </Button>
-            </Link>
-            <Link href="/auth">
-              <Button size="sm">
-                Get Started
-              </Button>
-            </Link>
+            {loading ? (
+              // Show loading state
+              <div className="flex space-x-2">
+                <div className="h-8 w-16 bg-gray-200 animate-pulse rounded"></div>
+                <div className="h-8 w-20 bg-gray-200 animate-pulse rounded"></div>
+              </div>
+            ) : user ? (
+              // Show authenticated user options
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-muted-foreground">
+                  {user.email}
+                </span>
+                <Link href="/dashboard">
+                  <Button variant="ghost" size="sm">
+                    Dashboard
+                  </Button>
+                </Link>
+                <Button variant="outline" size="sm" onClick={handleLogout}>
+                  Log Out
+                </Button>
+              </div>
+            ) : (
+              // Show non-authenticated options
+              <>
+                <Link href="/auth">
+                  <Button variant="ghost" size="sm">
+                    Sign In
+                  </Button>
+                </Link>
+                <Link href="/auth">
+                  <Button size="sm">
+                    Get Started
+                  </Button>
+                </Link>
+              </>
+            )}
           </nav>
         </div>
       </div>
