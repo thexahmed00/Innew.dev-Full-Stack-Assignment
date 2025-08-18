@@ -1,0 +1,192 @@
+{
+  "user": {
+    "id": "user_001",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "baseCurrency": "INR",
+    "kycStatus": "incomplete",
+    "trialDaysLeft": 8,
+    "isTrialActive": true
+  },
+  "netWorth": {
+    "current": 12500000,
+    "previous30Days": 11800000,
+    "change": 700000,
+    "changePercentage": 5.93,
+    "trend": "up"
+  },
+  "fxRates": {
+    "lastRefresh": "2024-01-15T10:30:00Z",
+    "source": "Reserve Bank of India",
+    "rates": {
+      "INR": 1,
+      "USD": 0.012,
+      "GBP": 0.0095,
+      "AED": 0.044
+    }
+  },
+  "countries": [
+    {
+      "code": "IN",
+      "name": "India",
+      "currency": "INR",
+      "netWorth": 8500000,
+      "assets": 9200000,
+      "liabilities": 700000,
+      "taxes": {
+        "total": 1250000,
+        "dueDate": "2024-03-31",
+        "confidence": "high",
+        "status": "estimated"
+      },
+      "kycStatus": "incomplete",
+      "residencyStatus": "complete"
+    },
+    {
+      "code": "UK",
+      "name": "United Kingdom",
+      "currency": "GBP",
+      "netWorth": 2500000,
+      "assets": 2800000,
+      "liabilities": 300000,
+      "taxes": {
+        "total": 450000,
+        "dueDate": "2024-01-31",
+        "confidence": "medium",
+        "status": "estimated"
+      },
+      "kycStatus": "complete",
+      "residencyStatus": "incomplete"
+    },
+    {
+      "code": "US",
+      "name": "United States",
+      "currency": "USD",
+      "netWorth": 1200000,
+      "assets": 1350000,
+      "liabilities": 150000,
+      "taxes": {
+        "total": 280000,
+        "dueDate": "2024-04-15",
+        "confidence": "high",
+        "status": "estimated"
+      },
+      "kycStatus": "complete",
+      "residencyStatus": "complete"
+    },
+    {
+      "code": "UAE",
+      "name": "United Arab Emirates",
+      "currency": "AED",
+      "netWorth": 300000,
+      "assets": 350000,
+      "liabilities": 50000,
+      "taxes": {
+        "total": 0,
+        "dueDate": null,
+        "confidence": "high",
+        "status": "no-tax"
+      },
+      "kycStatus": "complete",
+      "residencyStatus": "complete"
+    }
+  ],
+  "assets": {
+    "total": 13700000,
+    "byType": [
+      {
+        "type": "Cash",
+        "value": 3500000,
+        "percentage": 25.5
+      },
+      {
+        "type": "Securities",
+        "value": 5200000,
+        "percentage": 38.0
+      },
+      {
+        "type": "Crypto",
+        "value": 1800000,
+        "percentage": 13.1
+      },
+      {
+        "type": "Real Estate",
+        "value": 2800000,
+        "percentage": 20.4
+      },
+      {
+        "type": "Other",
+        "value": 400000,
+        "percentage": 2.9
+      }
+    ]
+  },
+  "liabilities": {
+    "total": 1200000,
+    "byType": [
+      {
+        "type": "Home Loan",
+        "value": 800000,
+        "percentage": 66.7
+      },
+      {
+        "type": "Personal Loan",
+        "value": 300000,
+        "percentage": 25.0
+      },
+      {
+        "type": "Credit Card",
+        "value": 100000,
+        "percentage": 8.3
+      }
+    ]
+  },
+  "taxes": {
+    "total": 1980000,
+    "nextDueDate": "2024-01-31",
+    "byCountry": [
+      {
+        "country": "IN",
+        "amount": 1250000,
+        "dueDate": "2024-03-31",
+        "confidence": "high"
+      },
+      {
+        "country": "UK",
+        "amount": 450000,
+        "dueDate": "2024-01-31",
+        "confidence": "medium"
+      },
+      {
+        "country": "US",
+        "amount": 280000,
+        "dueDate": "2024-04-15",
+        "confidence": "high"
+      },
+      {
+        "country": "UAE",
+        "amount": 0,
+        "dueDate": null,
+        "confidence": "high"
+      }
+    ]
+  },
+  "netWorthHistory": [
+    { "month": "2023-02", "value": 9800000 },
+    { "month": "2023-03", "value": 10200000 },
+    { "month": "2023-04", "value": 10500000 },
+    { "month": "2023-05", "value": 10800000 },
+    { "month": "2023-06", "value": 11000000 },
+    { "month": "2023-07", "value": 11200000 },
+    { "month": "2023-08", "value": 11400000 },
+    { "month": "2023-09", "value": 11600000 },
+    { "month": "2023-10", "value": 11700000 },
+    { "month": "2023-11", "value": 11800000 },
+    { "month": "2023-12", "value": 12000000 },
+    { "month": "2024-01", "value": 12500000 }
+  ],
+  "reminders": {
+    "total": 0,
+    "nextDue": null
+  }
+}
