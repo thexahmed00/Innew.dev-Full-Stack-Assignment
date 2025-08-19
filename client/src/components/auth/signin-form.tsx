@@ -71,7 +71,12 @@ export function SignInForm() {
       }
 
       toast.success("Signed in successfully!");
-      // Note: AuthContext will handle the redirect to dashboard
+      console.log("🚀 Redirecting to /dashboard");
+
+      // Add a small delay to ensure auth state is updated
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 100);
     } catch (err) {
       toast.error("An unexpected error occurred");
     } finally {
@@ -91,7 +96,12 @@ export function SignInForm() {
       }
 
       toast.success("OTP verified successfully!");
-      // Note: AuthContext will handle the redirect to dashboard
+      console.log("🚀 OTP verified, redirecting to /dashboard");
+
+      // Add a small delay to ensure auth state is updated
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 100);
     } catch (err) {
       toast.error("An unexpected error occurred");
     } finally {
@@ -124,14 +134,19 @@ export function SignInForm() {
     setIsLoading(true);
 
     try {
+      console.log("🔍 Starting Google OAuth sign-in");
       const { error } = await signInWithGoogle();
 
       if (error) {
+        console.error("❌ Google OAuth error:", error);
         toast.error(error);
         setIsLoading(false);
+      } else {
+        console.log("✅ Google OAuth initiated, redirecting...");
+        // Note: loading will continue until redirect happens
       }
-      // Note: loading will continue until redirect happens
     } catch (err) {
+      console.error("❌ Google OAuth exception:", err);
       toast.error("An unexpected error occurred");
       setIsLoading(false);
     }

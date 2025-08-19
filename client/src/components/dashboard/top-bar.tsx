@@ -49,6 +49,8 @@ export function TopBar({ className, activeTab = "dashboard" }: TopBarProps) {
         return "Users Management";
       case "documents":
         return "Documents";
+      case "billing":
+        return "Billing & Subscription";
       case "settings":
         return "Settings";
       default:

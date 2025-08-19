@@ -89,7 +89,12 @@ export function SignUpForm() {
       }
 
       toast.success("Account created successfully!");
-      // Note: AuthContext will handle the redirect to dashboard
+      console.log("🚀 Account verified, redirecting to /dashboard");
+
+      // Add a small delay to ensure auth state is updated
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 100);
     } catch (err) {
       toast.error("An unexpected error occurred");
     } finally {

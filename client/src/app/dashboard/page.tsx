@@ -9,6 +9,7 @@ import { DocumentsContent } from "@/components/dashboard/documents-content";
 import { SettingsContent } from "@/components/dashboard/settings-content";
 import { TopBar } from "@/components/dashboard/top-bar";
 import { QuickActions } from "@/components/dashboard/quick-actions";
+import { ProtectedRoute } from "@/components/auth/protected-route";
 
 // Import dashboard data
 import dashboardData from "../../../migration/dashboard-data.json";
@@ -60,17 +61,19 @@ export default function DashboardPage() {
   };
 
   return (
-    <SidebarWrapper activeTab={currentPage} onTabChange={handleTabChange}>
-      <div className="flex flex-col h-full">
-        {/* Top Bar */}
-        <TopBar activeTab={currentPage} />
+    <ProtectedRoute>
+      <SidebarWrapper activeTab={currentPage} onTabChange={handleTabChange}>
+        <div className="flex flex-col h-full">
+          {/* Top Bar */}
+          <TopBar activeTab={currentPage} />
 
-        {/* Main Content */}
-        <div className="flex-1 overflow-auto">{renderContent()}</div>
-      </div>
+          {/* Main Content */}
+          <div className="flex-1 overflow-auto">{renderContent()}</div>
+        </div>
 
-      {/* Quick Actions */}
-      <QuickActions />
-    </SidebarWrapper>
+        {/* Quick Actions */}
+        <QuickActions />
+      </SidebarWrapper>
+    </ProtectedRoute>
   );
 }

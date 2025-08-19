@@ -45,15 +45,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("🔄 Auth state change:", event, session ? "session exists" : "no session");
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
 
-      // Only redirect on SIGNED_IN if we're not already on a protected route
-      // This prevents conflicts with the callback route
-      if (event === "SIGNED_IN" && !window.location.pathname.startsWith("/dashboard")) {
-        router.push("/dashboard");
-      } else if (event === "SIGNED_OUT") {
+      // Let the components handle redirects to avoid conflicts
+      // Only handle sign out redirect here
+      if (event === "SIGNED_OUT") {
         router.push("/auth");
       }
     });

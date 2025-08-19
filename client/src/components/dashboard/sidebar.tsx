@@ -63,6 +63,12 @@ export function Sidebar({ className, activeTab, onTabChange }: SidebarProps) {
       href: "/dashboard/documents",
     },
     {
+      id: "billing",
+      title: "Billing",
+      icon: CreditCard,
+      href: "/billing",
+    },
+    {
       id: "settings",
       title: "Settings",
       icon: Settings,
@@ -105,7 +111,13 @@ export function Sidebar({ className, activeTab, onTabChange }: SidebarProps) {
               "w-full justify-start",
               isCollapsed ? "px-2 justify-center" : "px-4"
             )}
-            onClick={() => onTabChange(item.id)}
+            onClick={() => {
+              if (item.id === "billing") {
+                window.location.href = "/billing";
+              } else {
+                onTabChange(item.id);
+              }
+            }}
           >
             <item.icon className="h-4 w-4" />
             {!isCollapsed && <span className="ml-3">{item.title}</span>}
