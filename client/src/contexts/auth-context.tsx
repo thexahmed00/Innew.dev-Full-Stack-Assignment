@@ -13,6 +13,7 @@ interface AuthContextType {
   signUp: (email: string, password: string) => Promise<{ error?: string }>;
   signInWithOtp: (email: string) => Promise<{ error?: string }>;
   signInWithMagicLink: (email: string) => Promise<{ error?: string }>;
+  signInWithGoogle: () => Promise<{ error?: string }>;
   verifyOtp: (email: string, token: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
@@ -48,7 +49,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null);
       setLoading(false);
 
-      if (event === "SIGNED_IN") {
+      // Only redirect on SIGNED_IN if we're not already on a protected route
+      // This prevents conflicts with the callback route
+      if (event === "SIGNED_IN" && !window.location.pathname.startsWith("/dashboard")) {
         router.push("/dashboard");
       } else if (event === "SIGNED_OUT") {
         router.push("/auth");
@@ -113,6 +116,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInWithGoogle = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      return { error: error?.message };
+    } catch (error) {
+      return { error: "An unexpected error occurred" };
+    }
+  };
+
   const verifyOtp = async (email: string, token: string) => {
     try {
       const { error } = await supabase.auth.verifyOtp({
@@ -148,6 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signUp,
         signInWithOtp,
         signInWithMagicLink,
+        signInWithGoogle,
         verifyOtp,
         signOut,
         refreshSession,

@@ -18,7 +18,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Mail, ArrowLeft, Lock } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
-import { createSupabaseClient } from "@/lib/supabase";
+import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -44,7 +44,7 @@ export function SignInForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const router = useRouter();
-  const supabase = createSupabaseClient();
+  const { signIn, signInWithOtp, verifyOtp, signInWithGoogle } = useAuth();
 
   const signInForm = useForm<SignInFormData>({
     resolver: zodResolver(signInSchema),
@@ -59,22 +59,19 @@ export function SignInForm() {
     setEmail(data.email);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: data.password,
-      });
+      const { error } = await signIn(data.email, data.password);
 
       if (error) {
-        if (error.message === "Email not confirmed") {
+        if (error === "Email not confirmed") {
           toast.error("Please check your email and confirm your account first.");
         } else {
-          toast.error(error.message);
+          toast.error(error);
         }
         return;
       }
 
       toast.success("Signed in successfully!");
-      router.push("/dashboard");
+      // Note: AuthContext will handle the redirect to dashboard
     } catch (err) {
       toast.error("An unexpected error occurred");
     } finally {
@@ -86,19 +83,15 @@ export function SignInForm() {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.verifyOtp({
-        email,
-        token: data.otp,
-        type: "email",
-      });
+      const { error } = await verifyOtp(email, data.otp);
 
       if (error) {
-        toast.error(error.message);
+        toast.error(error);
         return;
       }
 
       toast.success("OTP verified successfully!");
-      router.push("/dashboard");
+      // Note: AuthContext will handle the redirect to dashboard
     } catch (err) {
       toast.error("An unexpected error occurred");
     } finally {
@@ -111,15 +104,10 @@ export function SignInForm() {
     setEmail(data.email);
 
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: data.email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
+      const { error } = await signInWithOtp(data.email);
 
       if (error) {
-        toast.error(error.message);
+        toast.error(error);
         return;
       }
 
@@ -136,15 +124,10 @@ export function SignInForm() {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
+      const { error } = await signInWithGoogle();
 
       if (error) {
-        toast.error(error.message);
+        toast.error(error);
         setIsLoading(false);
       }
       // Note: loading will continue until redirect happens

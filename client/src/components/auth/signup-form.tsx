@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Smartphone, ArrowLeft, Mail, Lock } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
-import { createSupabaseClient } from "@/lib/supabase";
+import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -46,7 +46,7 @@ export function SignUpForm() {
     }
   );
   const router = useRouter();
-  const supabase = createSupabaseClient();
+  const { signUp, verifyOtp, signInWithGoogle } = useAuth();
 
   const signUpForm = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
@@ -61,16 +61,10 @@ export function SignUpForm() {
     setUserData(data);
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
+      const { error } = await signUp(data.email, data.password);
 
       if (error) {
-        toast.error(error.message);
+        toast.error(error);
         return;
       }
 
@@ -87,19 +81,15 @@ export function SignUpForm() {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.verifyOtp({
-        email: userData.email,
-        token: data.otp,
-        type: "signup",
-      });
+      const { error } = await verifyOtp(userData.email, data.otp);
 
       if (error) {
-        toast.error(error.message);
+        toast.error(error);
         return;
       }
 
       toast.success("Account created successfully!");
-      router.push("/dashboard");
+      // Note: AuthContext will handle the redirect to dashboard
     } catch (err) {
       toast.error("An unexpected error occurred");
     } finally {
@@ -111,15 +101,10 @@ export function SignUpForm() {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
+      const { error } = await signInWithGoogle();
 
       if (error) {
-        toast.error(error.message);
+        toast.error(error);
         setIsLoading(false);
       }
       // Note: loading will continue until redirect happens
