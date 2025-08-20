@@ -14,17 +14,28 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Crown } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { type Subscription, billingService } from "@/lib/billing";
 
 interface TopBarProps {
   className?: string;
   activeTab?: string;
+  subscription?: Subscription | null;
+  loadingSubscription?: boolean;
 }
 
-export function TopBar({ className, activeTab = "dashboard" }: TopBarProps) {
+export function TopBar({ 
+  className, 
+  activeTab = "dashboard", 
+  subscription
+}: TopBarProps) {
   const [selectedCurrency, setSelectedCurrency] = useState("INR");
   const [selectedCountry, setSelectedCountry] = useState("Global");
   const { user, signOut } = useAuth();
+
+  const isProPlan = subscription && billingService.isSubscriptionActive(subscription) && 
+    (subscription.plan_name === 'PRO' || subscription.plan_name === 'ENTERPRISE');
 
   const currencies = [
     { code: "INR", symbol: "₹", name: "Indian Rupee" },
@@ -82,6 +93,12 @@ export function TopBar({ className, activeTab = "dashboard" }: TopBarProps) {
       {/* Left side - Page title */}
       <div className="flex items-center space-x-4">
         <h1 className="text-lg font-semibold">{getTabTitle(activeTab)}</h1>
+        {isProPlan && (
+          <Badge className="bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs">
+            <Crown className="h-3 w-3 mr-1" />
+            {subscription?.plan_name}
+          </Badge>
+        )}
       </div>
 
       {/* Right side - Notifications and Avatar */}

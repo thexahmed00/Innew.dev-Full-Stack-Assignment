@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 // Import routes
 import userRoutes from "./routes/userRoutes";
 import postRoutes from "./routes/postRoutes";
+import stripeRoutes, { webhookHandler } from "./routes/stripeRoutes";
 
 // Import middleware
 import { globalErrorHandler, notFoundHandler } from "./utils/errorHandler";
@@ -27,6 +28,11 @@ initializeDatabase().catch(console.error);
 app.use(helmet()); // Security headers
 app.use(cors()); // Enable CORS
 app.use(morgan("combined")); // Logging
+
+// Stripe webhook must be mounted BEFORE JSON body parser to preserve raw body for signature verification
+app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), webhookHandler);
+
+// Global body parsers (must come AFTER webhook)
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 app.use(rateLimiter); // Basic rate limiting
@@ -54,6 +60,7 @@ app.get("/api/status", (req, res) => {
 // API routes
 app.use("/api/users", userRoutes);
 app.use("/api/posts", postRoutes);
+app.use("/api/stripe", stripeRoutes);
 
 // Welcome endpoint
 app.get("/", (req, res) => {
@@ -66,6 +73,7 @@ app.get("/", (req, res) => {
       status: "/api/status",
       users: "/api/users",
       posts: "/api/posts",
+      stripe: "/api/stripe",
     },
   });
 });

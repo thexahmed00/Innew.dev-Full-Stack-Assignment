@@ -5,17 +5,22 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import { Sidebar } from "./sidebar";
+import { type Subscription } from "@/lib/billing";
 
 interface SidebarWrapperProps {
   children: React.ReactNode;
   activeTab: string;
   onTabChange: (tab: string) => void;
+  subscription?: Subscription | null;
+  loadingSubscription?: boolean;
 }
 
 export function SidebarWrapper({
   children,
   activeTab,
   onTabChange,
+  subscription,
+  loadingSubscription,
 }: SidebarWrapperProps) {
   const [isMobile, setIsMobile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -77,6 +82,8 @@ export function SidebarWrapper({
                     onTabChange(tab);
                     setIsMobileMenuOpen(false);
                   }}
+                  subscription={subscription}
+                  loadingSubscription={loadingSubscription}
                 />
               </div>
             </div>
@@ -94,7 +101,12 @@ export function SidebarWrapper({
   // Desktop Layout
   return (
     <div className="flex h-screen">
-      <Sidebar activeTab={activeTab} onTabChange={onTabChange} />
+      <Sidebar 
+        activeTab={activeTab} 
+        onTabChange={onTabChange} 
+        subscription={subscription}
+        loadingSubscription={loadingSubscription}
+      />
       <div className="flex-1 flex flex-col">
         <div className="flex-1 overflow-auto">
           <div className="h-full p-2">{children}</div>

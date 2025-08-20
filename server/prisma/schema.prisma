@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -12,4 +9,111 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// User profiles (extends Supabase auth.users)
+model User {
+  id              String   @id @db.Uuid
+  email           String   @unique
+  name            String?
+  avatar_url      String?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  // Subscription relationship
+  subscription    Subscription?
+  
+  // Content relationships
+  posts           Post[]
+  files           File[]
+  
+  @@map("users")
+}
+
+// Subscription management for Stripe billing
+model Subscription {
+  id                    String                @id @default(cuid())
+  user_id               String                @unique @db.Uuid
+  stripe_customer_id    String                @unique
+  stripe_subscription_id String?              @unique
+  status                SubscriptionStatus    @default(INACTIVE)
+  plan_name             String?
+  price_id              String?
+  current_period_start  DateTime?
+  current_period_end    DateTime?
+  // Credits tracking
+  credits_total         Int?
+  credits_used          Int?                  @default(0)
+  credits_reset_at      DateTime?
+  created_at            DateTime              @default(now())
+  updated_at            DateTime              @updatedAt
+
+  // Relations
+  user                  User                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+// Posts/Content management
+model Post {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  slug        String?  @unique
+  published   Boolean  @default(false)
+  user_id     String   @db.Uuid
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relations
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  @@map("posts")
+}
+
+// File storage management
+model File {
+  id            String     @id @default(cuid())
+  filename      String
+  original_name String
+  mime_type     String
+  size          Int
+  storage_path  String
+  public_url    String?
+  user_id       String     @db.Uuid
+  status        FileStatus @default(ACTIVE)
+  created_at    DateTime   @default(now())
+  updated_at    DateTime   @updatedAt
+
+  // Relations
+  user          User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  @@map("files")
+}
+
+// Stripe webhook events log
+model WebhookEvent {
+  id              String   @id @default(cuid())
+  stripe_event_id String   @unique
+  event_type      String
+  processed       Boolean  @default(false)
+  data            Json
+  created_at      DateTime @default(now())
+  
+  @@map("webhook_events")
+}
+
+// Enums
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+}
+
+enum FileStatus {
+  ACTIVE
+  DELETED
+  QUARANTINED
 }

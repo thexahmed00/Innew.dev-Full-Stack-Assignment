@@ -1,11 +1,12 @@
 import { Request, Response } from "express";
 import { UserModel } from "../models/User";
+import { SubscriptionModel } from "../models/Subscription";
 import {
   sendSuccessResponse,
   sendErrorResponse,
   asyncHandler,
 } from "../utils/errorHandler";
-import { User } from "../types";
+import { User, AuthenticatedRequest } from "../types";
 
 // Get all users
 export const getUsers = asyncHandler(async (req: Request, res: Response) => {
@@ -85,4 +86,17 @@ export const deleteUser = asyncHandler(async (req: Request, res: Response) => {
   }
 
   sendSuccessResponse(res, null, "User deleted successfully");
+});
+
+// Get user subscription
+export const getUserSubscription = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.id;
+
+  const subscription = await SubscriptionModel.findByUserId(userId);
+  if (!subscription) {
+    sendErrorResponse(res, new Error("No subscription found"), 404);
+    return;
+  }
+
+  sendSuccessResponse(res, subscription, "Subscription retrieved successfully");
 });
