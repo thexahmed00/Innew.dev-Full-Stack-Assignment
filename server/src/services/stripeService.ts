@@ -325,12 +325,22 @@ export class StripeService {
         throw stripeError;
       }
 
+      // Check if subscription is canceled - cannot modify canceled subscriptions
+      if (stripeSub.status === 'canceled') {
+        throw new CustomError('Cannot switch plans on a canceled subscription. Please create a new subscription instead.', 400);
+      }
+
+      // Check if subscription is in a state that allows modifications
+      if (!['active', 'past_due', 'trialing'].includes(stripeSub.status)) {
+        throw new CustomError(`Cannot switch plans on a subscription with status: ${stripeSub.status}. Please contact support.`, 400);
+      }
+
       const itemId = (stripeSub.items.data[0] && stripeSub.items.data[0].id) as string;
       if (!itemId) {
         throw new CustomError('Subscription items not found', 500);
       }
 
-      await stripe.subscriptions.update(subscription.stripe_subscription_id!, {
+      const updatedStripeSubscription = await stripe.subscriptions.update(subscription.stripe_subscription_id!, {
         cancel_at_period_end: false,
         proration_behavior: 'create_prorations',
         items: [
@@ -343,6 +353,36 @@ export class StripeService {
       });
 
       console.log(`✅ Plan switched for user ${userId} to price ${newPriceId}`);
+
+      // Immediately update local database as fallback (webhooks should also handle this)
+      try {
+        console.log('🔄 Updating local database immediately...');
+        const planName = getPlanFromPriceId(newPriceId);
+        const allocation = getPlanCredits(planName);
+
+        const update: any = {
+          status: 'ACTIVE' as any,
+          plan_name: planName,
+          price_id: newPriceId,
+          current_period_start: new Date(updatedStripeSubscription.current_period_start * 1000).toISOString(),
+          current_period_end: new Date(updatedStripeSubscription.current_period_end * 1000).toISOString(),
+          credits_total: allocation,
+        };
+
+        // Reset credits on plan change
+        const existing = await SubscriptionModel.findByUserId(userId);
+        if (!existing || existing.plan_name !== planName) {
+          update.credits_used = 0;
+          update.credits_reset_at = new Date(updatedStripeSubscription.current_period_end * 1000).toISOString();
+          console.log(`🔄 Credits reset for plan change: ${existing?.plan_name} -> ${planName}`);
+        }
+
+        await SubscriptionModel.updateByStripeId(subscription.stripe_subscription_id!, update);
+        console.log(`✅ Local database updated immediately for user ${userId}`);
+      } catch (dbError: any) {
+        console.error('⚠️ Failed to update local database immediately (webhook will handle):', dbError.message);
+        // Don't throw error here - webhook should handle the update
+      }
     } catch (error: any) {
       if (error instanceof CustomError) {
         throw error;
@@ -356,12 +396,20 @@ export class StripeService {
     try {
       const subscriptionId = stripeSubscription.id;
 
+      // Transition user to free plan when subscription is deleted
+      const freeCredits = getPlanCredits('FREE');
       await SubscriptionModel.updateByStripeId(subscriptionId, {
         status: 'CANCELED',
+        plan_name: 'FREE',
+        price_id: undefined,
+        stripe_subscription_id: undefined,
         current_period_end: new Date().toISOString(),
+        credits_total: freeCredits,
+        credits_used: 0,
+        credits_reset_at: null,
       });
 
-      console.log(`✅ Subscription canceled: ${subscriptionId}`);
+      console.log(`✅ Subscription canceled and user transitioned to free plan: ${subscriptionId}`);
     } catch (error: any) {
       console.error('Failed to handle subscription deletion:', error);
       throw error;
@@ -379,6 +427,7 @@ export class StripeService {
       const prices = await stripe.prices.list({
         active: true,
         expand: ['data.product'],
+        limit: 100, // Fetch more prices to avoid pagination issues
       });
 
       // Filter out test products created by Stripe CLI
@@ -464,6 +513,43 @@ export class StripeService {
     }
   }
 
+  // Cancel subscription immediately (for testing purposes)
+  static async cancelSubscriptionImmediately(userId: string): Promise<void> {
+    try {
+      const subscription = await SubscriptionModel.findByUserId(userId);
+      if (!subscription) {
+        throw new CustomError('No subscription found for this user. Please create a subscription first.', 404);
+      }
+
+      if (!subscription.stripe_subscription_id) {
+        throw new CustomError('No Stripe subscription ID found', 400);
+      }
+
+      // Cancel subscription immediately in Stripe (no period end grace)
+      await stripe.subscriptions.cancel(subscription.stripe_subscription_id);
+
+      // Update our database to reflect immediate cancellation and transition to free plan
+      const freeCredits = getPlanCredits('FREE');
+      await SubscriptionModel.update(userId, {
+        status: 'CANCELED',
+        plan_name: 'FREE',
+        price_id: undefined,
+        stripe_subscription_id: undefined,
+        current_period_end: new Date().toISOString(),
+        credits_total: freeCredits,
+        credits_used: 0,
+        credits_reset_at: null,
+      });
+
+      console.log(`✅ Subscription canceled immediately: ${subscription.stripe_subscription_id}`);
+    } catch (error: any) {
+      if (error instanceof CustomError) {
+        throw error;
+      }
+      throw new CustomError(`Failed to cancel subscription immediately: ${error.message}`, 500);
+    }
+  }
+
   // Reactivate subscription
   static async reactivateSubscription(userId: string): Promise<void> {
     try {
@@ -492,14 +578,30 @@ export class StripeService {
         Object.assign(subscription, updatedSubscription);
       }
 
-      // Verify the subscription exists in Stripe before trying to reactivate
+      // Verify the subscription exists in Stripe and check its status
+      let stripeSubscription;
       try {
-        await stripe.subscriptions.retrieve(subscription.stripe_subscription_id!);
+        stripeSubscription = await stripe.subscriptions.retrieve(subscription.stripe_subscription_id!);
       } catch (stripeError: any) {
         if (stripeError.code === 'resource_missing') {
           throw new CustomError('Subscription not found in Stripe. It may have already been canceled or deleted.', 404);
         }
         throw stripeError;
+      }
+
+      // Check if subscription is already canceled - cannot reactivate canceled subscriptions
+      if (stripeSubscription.status === 'canceled') {
+        throw new CustomError('Cannot reactivate a canceled subscription. Please create a new subscription instead.', 400);
+      }
+
+      // Check if subscription is already active
+      if (stripeSubscription.status === 'active') {
+        throw new CustomError('Subscription is already active.', 400);
+      }
+
+      // Only allow reactivation for subscriptions that are scheduled for cancellation
+      if (!stripeSubscription.cancel_at_period_end) {
+        throw new CustomError(`Cannot reactivate subscription with status: ${stripeSubscription.status}. Only subscriptions scheduled for cancellation can be reactivated.`, 400);
       }
 
       await stripe.subscriptions.update(subscription.stripe_subscription_id!, {

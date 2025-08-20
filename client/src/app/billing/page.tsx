@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Check, Crown, CreditCard, Loader2, Calendar } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { billingService, type StripeProduct, type Subscription } from "@/lib/billing";
+import { createSupabaseClient } from "@/lib/supabase";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -172,8 +173,13 @@ export default function BillingPage() {
   const loadProducts = async () => {
     try {
       const all = await billingService.getProducts();
-      // Remove Enterprise plan from the selectable plans list
-      const filtered = all.filter(p => !p.name || !p.name.toLowerCase().includes('enterprise'));
+      // Remove Enterprise plan and old Basic plan from the selectable plans list
+      const filtered = all.filter(p => {
+        if (!p.name) return false;
+        const name = p.name.toLowerCase();
+        // Keep Startup Plan but filter out Basic Plan and Enterprise Plan
+        return !name.includes('enterprise') && !name.includes('basic plan');
+      });
       setProducts(filtered);
     } catch (error) {
       console.error('Failed to load products:', error);
@@ -205,8 +211,35 @@ export default function BillingPage() {
     if (!n) return 0;
     if (n.includes('enterprise') || n === 'enterprise') return 3;
     if (n.includes('pro') || n === 'pro') return 2;
-    if (n.includes('basic') || n === 'basic') return 1;
+    if (n.includes('basic') || n === 'basic' || n.includes('startup') || n === 'startup') return 1;
     return 0; // free or unknown
+  };
+
+  const isDowngrade = (targetPlanName: string) => {
+    if (!subscription || !subscription.plan_name) return false;
+    const currentRank = getPlanRank(subscription.plan_name);
+    const targetRank = getPlanRank(targetPlanName);
+    return targetRank < currentRank;
+  };
+
+  // Helper function to normalize plan names for comparison
+  const normalizePlanName = (planName: string): string => {
+    return planName.toLowerCase().replace(/\s+plan$/i, '').trim();
+  };
+
+  // Helper function to check if subscription plan matches product
+  const isSubscriptionPlanMatch = (subscription: Subscription | null, productName: string): boolean => {
+    if (!subscription || !subscription.plan_name || subscription.status !== 'ACTIVE') return false;
+
+    const subscriptionPlan = normalizePlanName(subscription.plan_name);
+    const productPlan = normalizePlanName(productName);
+
+    return subscriptionPlan === productPlan;
+  };
+
+  // Helper function to check if a specific price is the current subscription price
+  const isCurrentPrice = (subscription: Subscription | null, priceId: string): boolean => {
+    return subscription?.price_id === priceId && subscription?.status === 'ACTIVE';
   };
 
   const handleSubscribe = async (priceId: string) => {
@@ -220,16 +253,36 @@ export default function BillingPage() {
     }
   };
 
-  const handleSwitchPlan = async (priceId: string) => {
+  const handleSwitchPlan = async (priceId: string, targetPlanName?: string) => {
     if (!subscription) return;
-    const confirmText = 'Are you sure you want to switch your plan? Prorated charges/credits may apply.';
-    const confirmed = window.confirm(confirmText);
-    if (!confirmed) return;
+
+    // Only validate for active subscriptions - server will handle the rest
+    if (subscription.status === 'ACTIVE' || subscription.status === 'PAST_DUE') {
+      const isDowngradeAction = targetPlanName && isDowngrade(targetPlanName);
+      const confirmText = isDowngradeAction
+        ? 'Are you sure you want to downgrade your plan? You will lose access to premium features and may receive a prorated credit.'
+        : 'Are you sure you want to switch your plan? Prorated charges/credits may apply.';
+
+      const confirmed = window.confirm(confirmText);
+      if (!confirmed) return;
+    }
+
     setLoadingProduct(priceId);
     try {
       await billingService.switchPlan(priceId);
-      toast.success('Plan change initiated. Your subscription will update shortly.');
+      const isDowngradeAction = targetPlanName && isDowngrade(targetPlanName);
+      const successMessage = isDowngradeAction
+        ? 'Plan downgrade initiated. Your subscription will update shortly.'
+        : 'Plan change initiated. Your subscription will update shortly.';
+      toast.success(successMessage);
+
+      // Immediately reload subscription data (server now updates database immediately)
       await loadSubscription();
+
+      // Also reload after a delay in case there are webhook updates
+      setTimeout(async () => {
+        await loadSubscription();
+      }, 3000);
     } catch (error: any) {
       toast.error(error.message || 'Failed to switch plan');
     } finally {
@@ -240,12 +293,18 @@ export default function BillingPage() {
 
   const handleCancelSubscription = async () => {
     if (!subscription) return;
-    const confirmed = window.confirm('Cancel your subscription at the end of the current period?');
+    const confirmed = window.confirm(
+      `Are you sure you want to cancel your ${subscription.plan_name} subscription?\n\n` +
+      `• Your subscription will remain active until ${new Date(subscription.current_period_end || '').toLocaleDateString()}\n` +
+      `• After that, you'll be downgraded to the Free plan\n` +
+      `• You'll keep access to all your data but with free plan limitations\n\n` +
+      `You can reactivate anytime before the period ends.`
+    );
     if (!confirmed) return;
     setIsLoading(true);
     try {
       await billingService.cancelSubscription();
-      toast.success('Subscription will be canceled at period end');
+      toast.success('Subscription will be canceled at period end. You will be downgraded to the Free plan.');
       await loadSubscription();
     } catch (error: any) {
       toast.error(error.message || 'Failed to cancel subscription');
@@ -255,6 +314,14 @@ export default function BillingPage() {
   };
 
   const handleReactivateSubscription = async () => {
+    if (!subscription) return;
+
+    // Basic validation - let server handle the detailed logic
+    if (subscription.status === 'ACTIVE') {
+      toast.error('Subscription is already active.');
+      return;
+    }
+
     setIsLoading(true);
     try {
       await billingService.reactivateSubscription();
@@ -262,6 +329,61 @@ export default function BillingPage() {
       await loadSubscription();
     } catch (error: any) {
       toast.error(error.message || 'Failed to reactivate subscription');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDowngradeToFree = async () => {
+    if (!subscription) return;
+    const confirmed = window.confirm(
+      'Are you sure you want to downgrade to the Free plan? Your subscription will be canceled at the end of the current billing period and you will lose access to premium features.'
+    );
+    if (!confirmed) return;
+    setIsLoading(true);
+    try {
+      await billingService.cancelSubscription();
+      toast.success('Subscription will be canceled at period end. You will be downgraded to the Free plan.');
+      await loadSubscription();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to downgrade subscription');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDowngradeToFreeImmediately = async () => {
+    if (!subscription) return;
+    const confirmed = window.confirm(
+      '⚠️ TESTING MODE: This will immediately cancel your subscription and remove Pro features. Are you sure?'
+    );
+    if (!confirmed) return;
+    setIsLoading(true);
+    try {
+      // Call immediate cancellation endpoint
+      const supabase = createSupabaseClient();
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) {
+        throw new Error('No authenticated user');
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/stripe/cancel-subscription-immediately`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to cancel subscription immediately');
+      }
+
+      toast.success('🧪 Subscription canceled immediately for testing!');
+      await loadSubscription();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to cancel subscription immediately');
     } finally {
       setIsLoading(false);
     }
@@ -286,13 +408,16 @@ export default function BillingPage() {
     const name = planName.toLowerCase();
     switch (name) {
       case 'basic plan':
-        return ['100 files', '1GB storage', '50 posts', 'Email support', 'Basic analytics'];
+      case 'startup plan':
+        return ['100 files', '1GB storage', '50 posts', '500 credits/month', 'Email support', 'Basic analytics'];
       case 'pro plan':
-        return ['1000 files', '10GB storage', '500 posts', 'Priority support', 'Advanced analytics', 'API access'];
+        return ['1000 files', '10GB storage', '500 posts', '2000 credits/month', 'Priority support', 'Advanced analytics', 'API access'];
       case 'enterprise plan':
-        return ['Unlimited files', 'Unlimited storage', 'Unlimited posts', '24/7 phone support', 'Custom integrations', 'SLA guarantee'];
+        return ['Unlimited files', 'Unlimited storage', 'Unlimited posts', 'Unlimited credits', '24/7 phone support', 'Custom integrations', 'SLA guarantee'];
+      case 'free':
+      case 'free plan':
       default:
-        return ['10 files', '100MB storage', '5 posts', 'Community support'];
+        return ['10 files', '100MB storage', '5 posts', '10 credits/month', 'Community support'];
     }
   };
 
@@ -395,39 +520,56 @@ export default function BillingPage() {
                   </ul>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {/* Temporarily disabled until Stripe Customer Portal is configured */}
-                  {/* <Button onClick={handleManageSubscription} disabled={isLoading} variant="outline">
-                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4 mr-2" />}
-                    Billing portal
-                  </Button> */}
+                <div className="flex flex-col gap-2">
+                  {/* Status message */}
+                  <div className="text-sm text-muted-foreground">
+                    {subscription.status === 'CANCELED'
+                      ? 'Your subscription has been canceled. You can subscribe to a new plan below to regain access to premium features.'
+                      : billingService.getSubscriptionStatusMessage(subscription.status).message
+                    }
+                  </div>
 
-                  {subscription.status === 'ACTIVE' && (
-                    <Button onClick={handleCancelSubscription} variant="destructive" disabled={isLoading}>
-                      Cancel at period end
-                    </Button>
-                  )}
-                  {subscription.status !== 'ACTIVE' && (
-                    <Button onClick={handleReactivateSubscription} disabled={isLoading}>
-                      Reactivate
-                    </Button>
-                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {/* Temporarily disabled until Stripe Customer Portal is configured */}
+                    {/* <Button onClick={handleManageSubscription} disabled={isLoading} variant="outline">
+                      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4 mr-2" />}
+                      Billing portal
+                    </Button> */}
+
+                    {subscription.status === 'ACTIVE' && (
+                      <Button onClick={handleCancelSubscription} variant="destructive" disabled={isLoading}>
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            Canceling...
+                          </>
+                        ) : (
+                          'Downgrade to Free Plan'
+                        )}
+                      </Button>
+                    )}
+                    {billingService.getSubscriptionStatusMessage(subscription.status).canReactivate && (
+                      <Button onClick={handleReactivateSubscription} disabled={isLoading}>
+                        Reactivate subscription
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
           )}
 
           {/* Free Plan Card */}
-          <div className="grid gap-6 md:grid-cols-3 mb-8">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
             <Card className="relative">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   Free Plan
-                  {(!subscription || subscription.plan_name === 'FREE') && (
+                  {(!subscription || !billingService.isSubscriptionActive(subscription) || subscription.plan_name === 'FREE') && (
                     <Badge variant="outline">Current</Badge>
                   )}
                 </CardTitle>
-                <CardDescription>Perfect for getting started</CardDescription>
+                <CardDescription>Perfect for getting started - always available as a fallback</CardDescription>
                 <div className="text-3xl font-bold">$0<span className="text-sm font-normal">/month</span></div>
               </CardHeader>
               <CardContent>
@@ -439,9 +581,36 @@ export default function BillingPage() {
                     </li>
                   ))}
                 </ul>
-                <Button variant="outline" className="w-full" disabled>
-                  {(!subscription || subscription.plan_name === 'FREE') ? 'Current Plan' : 'Downgrade'}
-                </Button>
+                <div className="space-y-2">
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={!subscription || !billingService.isSubscriptionActive(subscription) || subscription.plan_name === 'FREE' || isLoading}
+                    onClick={(!subscription || !billingService.isSubscriptionActive(subscription) || subscription.plan_name === 'FREE') ? undefined : handleDowngradeToFree}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Processing...
+                      </>
+                    ) : (
+                      (!subscription || !billingService.isSubscriptionActive(subscription) || subscription.plan_name === 'FREE') ? 'Current Plan' : 'Downgrade to Free'
+                    )}
+                  </Button>
+                  
+                  {/* Testing button for immediate cancellation */}
+                  {subscription && billingService.isSubscriptionActive(subscription) && subscription.plan_name !== 'FREE' && (
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      className="w-full text-xs" 
+                      disabled={isLoading}
+                      onClick={handleDowngradeToFreeImmediately}
+                    >
+                      🧪 Test: Cancel Immediately
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
@@ -453,11 +622,20 @@ export default function BillingPage() {
 
               if (!displayPrice) return null;
 
-              const isCurrentPlan = subscription?.plan_name?.toLowerCase() === product.name.toLowerCase();
+              const isCurrentPlan = isSubscriptionPlanMatch(subscription, product.name);
               const isPopular = product.name.toLowerCase().includes('pro');
+              const isDowngradeAction = isDowngrade(product.name);
+              const statusInfo = subscription ? billingService.getSubscriptionStatusMessage(subscription.status) : null;
+              const canSwitchPlan = !subscription || statusInfo?.canSwitchPlan || false;
+              const isCanceled = subscription?.status === 'CANCELED';
+              const hasActiveSubscription = subscription?.status === 'ACTIVE';
 
               return (
-                <Card key={product.id} className={cn("relative", isPopular ? "border-primary" : "")}>
+                <Card key={product.id} className={cn(
+                  "relative", 
+                  isPopular ? "border-primary" : "",
+                  isDowngradeAction ? "border-orange-300 bg-orange-50/20" : ""
+                )}>
                   {isPopular && (
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                       <Badge className="bg-primary text-primary-foreground">
@@ -496,15 +674,29 @@ export default function BillingPage() {
                       {monthlyPrice && (
                         <Button
                           className="w-full"
-                          onClick={() => (isCurrentPlan ? undefined : (subscription ? handleSwitchPlan(monthlyPrice.id) : handleSubscribe(monthlyPrice.id)))}
-                          disabled={loadingProduct === monthlyPrice.id}
-                          variant={isCurrentPlan ? "outline" : "default"}
+                          onClick={() => {
+                            if (isCanceled || !subscription) {
+                              // For canceled subscriptions or no subscription, create new subscription
+                              handleSubscribe(monthlyPrice.id);
+                            } else {
+                              // For active subscriptions, switch plan (including billing interval changes)
+                              handleSwitchPlan(monthlyPrice.id, product.name);
+                            }
+                          }}
+                          disabled={loadingProduct === monthlyPrice.id || (hasActiveSubscription && !canSwitchPlan) || isCurrentPrice(subscription, monthlyPrice.id)}
+                          variant={isCurrentPrice(subscription, monthlyPrice.id) ? "outline" : (isDowngradeAction ? "destructive" : "default")}
                         >
                           {loadingProduct === monthlyPrice.id ? (
                             <Loader2 className="h-4 w-4 animate-spin mr-2" />
                           ) : null}
-                          {isCurrentPlan
+                          {isCurrentPrice(subscription, monthlyPrice.id)
                             ? 'Current Plan'
+                            : isCanceled
+                            ? `Subscribe Monthly (${billingService.formatPrice(monthlyPrice.unit_amount)})`
+                            : isDowngradeAction
+                            ? `Downgrade (${billingService.formatPrice(monthlyPrice.unit_amount)}/month)`
+                            : isCurrentPlan
+                            ? `Switch to Monthly (${billingService.formatPrice(monthlyPrice.unit_amount)}/month)`
                             : `Subscribe Monthly (${billingService.formatPrice(monthlyPrice.unit_amount)})`
                           }
                         </Button>
@@ -513,18 +705,32 @@ export default function BillingPage() {
                       {yearlyPrice && (
                         <Button
                           className="w-full"
-                          onClick={() => (isCurrentPlan ? undefined : (subscription ? handleSwitchPlan(yearlyPrice.id) : handleSubscribe(yearlyPrice.id)))}
-                          disabled={loadingProduct === yearlyPrice.id}
-                          variant={monthlyPrice ? "outline" : (isCurrentPlan ? "outline" : "default")}
+                          onClick={() => {
+                            if (isCanceled || !subscription) {
+                              // For canceled subscriptions or no subscription, create new subscription
+                              handleSubscribe(yearlyPrice.id);
+                            } else {
+                              // For active subscriptions, switch plan (including billing interval changes)
+                              handleSwitchPlan(yearlyPrice.id, product.name);
+                            }
+                          }}
+                          disabled={loadingProduct === yearlyPrice.id || (hasActiveSubscription && !canSwitchPlan) || isCurrentPrice(subscription, yearlyPrice.id)}
+                          variant={monthlyPrice ? "outline" : (isCurrentPrice(subscription, yearlyPrice.id) ? "outline" : (isDowngradeAction ? "destructive" : "default"))}
                         >
                           {loadingProduct === yearlyPrice.id ? (
                             <Loader2 className="h-4 w-4 animate-spin mr-2" />
                           ) : null}
-                          {isCurrentPlan
+                          {isCurrentPrice(subscription, yearlyPrice.id)
                             ? 'Current Plan'
+                            : isCanceled
+                            ? `Subscribe Yearly (${billingService.formatPrice(yearlyPrice.unit_amount)})`
+                            : isDowngradeAction
+                            ? `Downgrade (${billingService.formatPrice(yearlyPrice.unit_amount)}/year)`
+                            : isCurrentPlan
+                            ? `Switch to Yearly (${billingService.formatPrice(yearlyPrice.unit_amount)}/year)`
                             : `Subscribe Yearly (${billingService.formatPrice(yearlyPrice.unit_amount)})`
                           }
-                          {!isCurrentPlan && yearlyPrice && monthlyPrice && (
+                          {!isCurrentPlan && yearlyPrice && monthlyPrice && !isDowngradeAction && (
                             <Badge variant="secondary" className="ml-2">
                               Save {Math.round((1 - (yearlyPrice.unit_amount / 12) / monthlyPrice.unit_amount) * 100)}%
                             </Badge>

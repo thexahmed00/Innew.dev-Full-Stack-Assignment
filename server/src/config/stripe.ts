@@ -16,15 +16,15 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 export const STRIPE_CONFIG = {
   // Product names
   PRODUCTS: {
-    BASIC: 'Basic Plan',
+    STARTUP: 'Startup Plan',
     PRO: 'Pro Plan',
     ENTERPRISE: 'Enterprise Plan',
   },
 
   // Price configurations (you'll replace these with actual price IDs from Stripe dashboard)
   PRICES: {
-    BASIC_MONTHLY: process.env.STRIPE_PRICE_BASIC_MONTHLY || 'price_basic_monthly',
-    BASIC_YEARLY: process.env.STRIPE_PRICE_BASIC_YEARLY || 'price_basic_yearly',
+    STARTUP_MONTHLY: process.env.STRIPE_PRICE_STARTUP_MONTHLY || 'price_startup_monthly',
+    STARTUP_YEARLY: process.env.STRIPE_PRICE_STARTUP_YEARLY || 'price_startup_yearly',
     PRO_MONTHLY: process.env.STRIPE_PRICE_PRO_MONTHLY || 'price_pro_monthly',
     PRO_YEARLY: process.env.STRIPE_PRICE_PRO_YEARLY || 'price_pro_yearly',
     ENTERPRISE_MONTHLY: process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY || 'price_enterprise_monthly',
@@ -38,7 +38,7 @@ export const STRIPE_CONFIG = {
       storage: 100 * 1024 * 1024, // 100MB
       posts: 5,
     },
-    BASIC: {
+    STARTUP: {
       files: 100,
       storage: 1024 * 1024 * 1024, // 1GB
       posts: 50,
@@ -59,8 +59,8 @@ export const STRIPE_CONFIG = {
 // Helper function to get plan from price ID
 export function getPlanFromPriceId(priceId: string): string {
   const priceMap: Record<string, string> = {
-    [STRIPE_CONFIG.PRICES.BASIC_MONTHLY]: 'BASIC',
-    [STRIPE_CONFIG.PRICES.BASIC_YEARLY]: 'BASIC',
+    [STRIPE_CONFIG.PRICES.STARTUP_MONTHLY]: 'STARTUP',
+    [STRIPE_CONFIG.PRICES.STARTUP_YEARLY]: 'STARTUP',
     [STRIPE_CONFIG.PRICES.PRO_MONTHLY]: 'PRO',
     [STRIPE_CONFIG.PRICES.PRO_YEARLY]: 'PRO',
     [STRIPE_CONFIG.PRICES.ENTERPRISE_MONTHLY]: 'ENTERPRISE',
@@ -74,7 +74,8 @@ export function getPlanFromPriceId(priceId: string): string {
 export function getPlanLimits(planName: string) {
   switch (planName.toUpperCase()) {
     case 'BASIC':
-      return STRIPE_CONFIG.LIMITS.BASIC;
+    case 'STARTUP':
+      return STRIPE_CONFIG.LIMITS.STARTUP;
     case 'PRO':
       return STRIPE_CONFIG.LIMITS.PRO;
     case 'ENTERPRISE':
@@ -87,10 +88,11 @@ export function getPlanLimits(planName: string) {
 // Credits allocation per plan
 export function getPlanCredits(planName: string): number | null {
   const plan = planName.toUpperCase();
-  if (plan === 'BASIC') return 100;
-  if (plan === 'PRO') return 1000;
+  if (plan === 'BASIC' || plan === 'STARTUP') return 500;
+  if (plan === 'PRO') return 2000;
   if (plan === 'ENTERPRISE') return null; // unlimited
-  return 0; // Free tier credits
+  if (plan === 'FREE') return 10; // Free tier credits
+  return 10; // Default to free tier credits
 }
 
 

@@ -193,6 +193,24 @@ router.post('/cancel-subscription', authenticateUser, (async (req: Authenticated
   }
 }));
 
+// Cancel subscription immediately (for testing)
+router.post('/cancel-subscription-immediately', authenticateUser, (async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    await StripeService.cancelSubscriptionImmediately(userId);
+
+    res.json({
+      success: true,
+      message: 'Subscription canceled immediately'
+    });
+  } catch (error: any) {
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}));
+
 // Reactivate subscription
 router.post('/reactivate-subscription', authenticateUser, (async (req: AuthenticatedRequest, res) => {
   try {

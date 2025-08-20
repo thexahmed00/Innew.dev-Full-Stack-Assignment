@@ -185,9 +185,10 @@ class BillingService {
         body: JSON.stringify({ price_id: priceId }),
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to switch plan');
+        throw new Error(result.error || 'Failed to switch plan');
       }
     } catch (error) {
       console.error('Error switching plan:', error);
@@ -446,28 +447,93 @@ class BillingService {
 
     switch (plan) {
       case 'BASIC':
+      case 'STARTUP':
         return {
           files: 100,
           storage: '1GB',
           posts: 50,
+          credits: 500,
         };
       case 'PRO':
         return {
           files: 1000,
           storage: '10GB',
           posts: 500,
+          credits: 2000,
         };
       case 'ENTERPRISE':
         return {
           files: 'Unlimited',
           storage: 'Unlimited',
           posts: 'Unlimited',
+          credits: 'Unlimited',
         };
+      case 'FREE':
       default:
         return {
           files: 10,
           storage: '100MB',
           posts: 5,
+          credits: 10,
+        };
+    }
+  }
+
+  // Get credit allocation for a specific plan
+  getCreditAllocation(planName?: string): number {
+    const plan = planName?.toUpperCase() || 'FREE';
+
+    switch (plan) {
+      case 'BASIC':
+      case 'STARTUP':
+        return 500;
+      case 'PRO':
+        return 2000;
+      case 'ENTERPRISE':
+        return -1; // Unlimited
+      case 'FREE':
+      default:
+        return 10;
+    }
+  }
+
+  getSubscriptionStatusMessage(status: string): { message: string; canReactivate: boolean; canSwitchPlan: boolean } {
+    switch (status) {
+      case 'ACTIVE':
+        return {
+          message: 'Your subscription is active and all features are available.',
+          canReactivate: false,
+          canSwitchPlan: true
+        };
+      case 'PAST_DUE':
+        return {
+          message: 'Your subscription payment is past due. Please update your payment method to continue using premium features.',
+          canReactivate: true,
+          canSwitchPlan: true
+        };
+      case 'CANCELED':
+        return {
+          message: 'Your subscription has been canceled. Create a new subscription to access premium features.',
+          canReactivate: false,
+          canSwitchPlan: false
+        };
+      case 'UNPAID':
+        return {
+          message: 'Your subscription is unpaid. Please resolve payment issues to continue.',
+          canReactivate: false,
+          canSwitchPlan: false
+        };
+      case 'INACTIVE':
+        return {
+          message: 'Your subscription is inactive. Please contact support for assistance.',
+          canReactivate: false,
+          canSwitchPlan: false
+        };
+      default:
+        return {
+          message: `Subscription status: ${status}. Please contact support if you need assistance.`,
+          canReactivate: false,
+          canSwitchPlan: false
         };
     }
   }

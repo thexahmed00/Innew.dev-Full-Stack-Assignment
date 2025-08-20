@@ -80,6 +80,7 @@ export default function DashboardPage() {
     const isActive = billingService.isSubscriptionActive(subscription);
     const planName = subscription?.plan_name || 'FREE';
     const isProPlan = isActive && (planName === 'PRO' || planName === 'ENTERPRISE');
+    const isStartupPlan = isActive && (planName === 'STARTUP' || planName === 'BASIC');
 
     // Debug logging
     console.log('🏠 Dashboard render state:', {
@@ -87,6 +88,7 @@ export default function DashboardPage() {
       isActive: isActive,
       planName: planName,
       isProPlan: isProPlan,
+      isStartupPlan: isStartupPlan,
       currentPage: currentPage,
       upgraded: upgraded
     });
