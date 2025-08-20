@@ -77,7 +77,7 @@ export function SignInForm() {
       setTimeout(() => {
         router.push("/dashboard");
       }, 100);
-    } catch (err) {
+    } catch {
       toast.error("An unexpected error occurred");
     } finally {
       setIsLoading(false);
@@ -102,7 +102,7 @@ export function SignInForm() {
       setTimeout(() => {
         router.push("/dashboard");
       }, 100);
-    } catch (err) {
+    } catch {
       toast.error("An unexpected error occurred");
     } finally {
       setIsLoading(false);
@@ -123,7 +123,7 @@ export function SignInForm() {
 
       toast.success("Magic link sent! Check your email.");
       setAuthMethod("otp");
-    } catch (err) {
+    } catch {
       toast.error("An unexpected error occurred");
     } finally {
       setIsLoading(false);
@@ -145,8 +145,8 @@ export function SignInForm() {
         console.log("✅ Google OAuth initiated, redirecting...");
         // Note: loading will continue until redirect happens
       }
-    } catch (err) {
-      console.error("❌ Google OAuth exception:", err);
+    } catch {
+      console.error("❌ Google OAuth exception occurred");
       toast.error("An unexpected error occurred");
       setIsLoading(false);
     }

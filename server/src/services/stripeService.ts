@@ -1,8 +1,11 @@
 import { stripe, getPlanFromPriceId, getPlanCredits } from '../config/stripe';
 import { SubscriptionModel } from '../models/Subscription';
 import { UserModel } from '../models/User';
+import { Resend } from 'resend';
 import { CustomError } from '../utils/errorHandler';
 import type { User } from '../types';
+
+const resend = new Resend(process.env.RESEND_API_KEY!);
 
 export class StripeService {
   // Create Stripe customer
@@ -77,6 +80,7 @@ export class StripeService {
   ): Promise<string> {
     try {
       const customerId = await this.getOrCreateCustomer(userId);
+      const user = await UserModel.findById(userId);
 
       const session = await stripe.checkout.sessions.create({
         customer: customerId,
@@ -96,6 +100,14 @@ export class StripeService {
           user_id: userId,
           price_id: priceId,
         },
+      });
+
+      //trigger mail to user
+      await resend.emails.send({
+        from: process.env.FROM_EMAIL || '<no-reply@example.com>',
+        to: user?.email || 'mustafaa2k1@gmail.com',
+        subject: 'Your Checkout Session is Ready',
+        html: `<p>Click <a href="${session.url}">here</a> to complete your purchase.</p>`,
       });
 
       return session.url!;
@@ -222,6 +234,27 @@ export class StripeService {
       });
       console.log('✅ Subscription updated successfully');
 
+      // Notify user via email
+      const user = await UserModel.findById(subscription.user_id);
+      if (!user) {
+        console.warn(`⚠️ No user found for subscription ${subscriptionId}. Cannot send welcome email.`);
+        return;
+      }
+      await resend.emails.send({
+        from: process.env.FROM_EMAIL || 'no-reply@example.com',
+        to: 'mustafaa2k1@gmail.com' ,
+        subject: 'Your Subscription Has Been Activated',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2>Subscription Activated</h2>
+            <p>Dear ${user.name || user.email},</p>
+            <p>Your subscription has been successfully activated. Welcome aboard!</p>
+            <p>If you have any questions or need assistance, please contact our support team.</p>
+            <p>Thank you for using our service!</p>
+          </div>
+        `,
+      });
+
       console.log(`✅ Subscription activated for user ${subscription.user_id}`);
     } catch (error: any) {
       console.error('Failed to handle subscription creation:', error);
@@ -278,6 +311,28 @@ export class StripeService {
       }
 
       await SubscriptionModel.updateByStripeId(subscriptionId, update);
+
+      const user = await UserModel.findById(stripeSubscription.metadata.user_id);
+      if (!user) {
+        console.warn(`⚠️ No user found for subscription ${subscriptionId}. Cannot send update email.`);
+        return;
+      }
+      
+      // Notify user via email
+      await resend.emails.send({
+        from: process.env.FROM_EMAIL || 'no-reply@example.com',
+        to: 'mustafaa2k1@gmail.com',
+        subject: 'Your Subscription Has Been Updated',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2>Subscription Updated</h2>
+            <p>Dear ${user.name || user.email},</p>
+            <p>Your subscription has been successfully updated to the ${planName} plan.</p>
+            <p>If you have any questions or need assistance, please contact our support team.</p>
+            <p>Thank you for using our service!</p>
+          </div>
+        `,
+      });
 
       console.log(`✅ Subscription updated: ${subscriptionId} -> ${status}`);
     } catch (error: any) {
@@ -407,6 +462,29 @@ export class StripeService {
         credits_total: freeCredits,
         credits_used: 0,
         credits_reset_at: null,
+      });
+
+      // Notify user via email
+      const customerId = stripeSubscription.customer;
+      const user = await UserModel.findById(customerId);
+      if (!user) {
+        console.warn(`No user found for customer ID ${customerId}. Cannot send cancellation email.`);
+        return;
+      }
+      
+      await resend.emails.send({
+        from: process.env.FROM_EMAIL || 'no-reply@example.com',
+        to: user.email,
+        subject: 'Your Subscription Has Been Canceled',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2>Subscription Canceled</h2>
+            <p>Dear ${user.name || user.email},</p>
+            <p>Your subscription has been successfully canceled. You have been transitioned to the free plan.</p>
+            <p>If you have any questions or need assistance, please contact our support team.</p>
+            <p>Thank you for using our service!</p>
+          </div>
+        `,
       });
 
       console.log(`✅ Subscription canceled and user transitioned to free plan: ${subscriptionId}`);
@@ -617,12 +695,96 @@ export class StripeService {
     }
   }
 
+  // Send payment success confirmation email
+  static async sendPaymentSuccessEmail(userEmail: string, userName: string, amount: number, planName: string, invoiceId: string): Promise<void> {
+    try {
+      const formattedAmount = (amount / 100).toFixed(2); // Convert cents to dollars
+      
+      await resend.emails.send({
+        from: process.env.FROM_EMAIL!,
+        to: userEmail,
+        subject: 'Payment Confirmation - Your Subscription Renewed',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+              <h1 style="color: #28a745; margin: 0;">Payment Successful!</h1>
+            </div>
+            
+            <p>Hi ${userName},</p>
+            
+            <p>We've successfully processed your payment for your ${planName} subscription. Thank you for your continued trust in our service!</p>
+            
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="margin-top: 0; color: #333;">Payment Details</h3>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; border-bottom: 1px solid #dee2e6;"><strong>Amount:</strong></td>
+                  <td style="padding: 8px 0; border-bottom: 1px solid #dee2e6; text-align: right;">$${formattedAmount}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; border-bottom: 1px solid #dee2e6;"><strong>Plan:</strong></td>
+                  <td style="padding: 8px 0; border-bottom: 1px solid #dee2e6; text-align: right;">${planName}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0;"><strong>Invoice ID:</strong></td>
+                  <td style="padding: 8px 0; text-align: right;">${invoiceId}</td>
+                </tr>
+              </table>
+            </div>
+            
+            <p>Your subscription will continue uninterrupted, and you have full access to all features included in your ${planName} plan.</p>
+            
+            <p>If you have any questions about your payment or subscription, please don't hesitate to contact our support team.</p>
+            
+            <p>Best regards,<br>The Team</p>
+            
+            <hr style="border: none; border-top: 1px solid #dee2e6; margin: 30px 0;">
+            <p style="font-size: 12px; color: #6c757d;">
+              This is an automated email confirmation. Please keep this for your records.
+            </p>
+          </div>
+        `,
+      });
+      console.log(`✅ Payment success email sent to ${userEmail} for amount $${formattedAmount}`);
+    } catch (error: any) {
+      console.error('Failed to send payment success email:', error);
+      // Don't throw error here as it's not critical to the payment process
+    }
+  }
+
   // Invoice events
   static async handleInvoicePaymentSucceeded(invoice: any): Promise<void> {
     try {
-      const subscriptionId = invoice.subscription as string;
+
+      console.log('📄 wwwwww Handling invoice payment succeeded event');
+      const subscriptionId = invoice.parent.subscription_details.subscription as string;
+
       if (subscriptionId) {
         await SubscriptionModel.updateByStripeId(subscriptionId, { status: 'ACTIVE' as any });
+        
+        // Send payment success email
+        try {
+          // Get subscription details to find user
+          const subscription = await SubscriptionModel.findByStripeSubscriptionId(subscriptionId);
+          if (subscription) {
+            console.log(`🔍 Found subscription for user ${subscription.user_id}`);
+            const user = await UserModel.findById(subscription.user_id);
+            console.log(`👤 Found user`, user);
+            if (user && user.email) {
+              console.log(`📧 Sending payment success email to ${user.email}`);
+              await this.sendPaymentSuccessEmail(
+                "mustafaa2k1@gmail.com",
+                user.name || 'Customer',
+                invoice.amount_paid,
+                subscription.plan_name || 'Unknown Plan',
+                invoice.id
+              );
+            }
+          }
+        } catch (emailError: any) {
+          console.error('Failed to send payment success email:', emailError);
+          // Don't throw - email failure shouldn't affect payment processing
+        }
       }
     } catch (error: any) {
       console.error('Failed to handle invoice payment succeeded:', error);

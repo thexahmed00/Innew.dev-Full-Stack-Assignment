@@ -4,17 +4,18 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { createSupabaseClient } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import type { AuthUser, AuthSession } from "@/lib/supabase";
+import { handleAsyncOperation, type AuthResult } from "@/lib/error-handler";
 
 interface AuthContextType {
   user: AuthUser | null;
   session: AuthSession | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error?: string }>;
-  signUp: (email: string, password: string) => Promise<{ error?: string }>;
-  signInWithOtp: (email: string) => Promise<{ error?: string }>;
-  signInWithMagicLink: (email: string) => Promise<{ error?: string }>;
-  signInWithGoogle: () => Promise<{ error?: string }>;
-  verifyOtp: (email: string, token: string) => Promise<{ error?: string }>;
+  signIn: (email: string, password: string) => Promise<AuthResult>;
+  signUp: (email: string, password: string) => Promise<AuthResult>;
+  signInWithOtp: (email: string) => Promise<AuthResult>;
+  signInWithMagicLink: (email: string) => Promise<AuthResult>;
+  signInWithGoogle: () => Promise<AuthResult>;
+  verifyOtp: (email: string, token: string) => Promise<AuthResult>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
 }
@@ -28,130 +29,74 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const supabase = createSupabaseClient();
 
+  const updateSession = (session: AuthSession | null) => {
+    setSession(session);
+    setUser(session?.user ?? null);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    // Get initial session
     const getInitialSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      const { data: { session } } = await supabase.auth.getSession();
+      updateSession(session);
     };
 
     getInitialSession();
 
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("🔄 Auth state change:", event, session ? "session exists" : "no session");
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      updateSession(session);
 
-      // Let the components handle redirects to avoid conflicts
-      // Only handle sign out redirect here
       if (event === "SIGNED_OUT") {
         router.push("/auth");
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [router]);
+  }, [router, supabase.auth]);
 
-  const signIn = async (email: string, password: string) => {
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
+  const signIn = (email: string, password: string) =>
+    handleAsyncOperation(() => supabase.auth.signInWithPassword({ email, password }));
+
+  const signUp = (email: string, password: string) =>
+    handleAsyncOperation(() =>
+      supabase.auth.signUp({
         email,
         password,
-      });
-      return { error: error?.message };
-    } catch (error) {
-      return { error: "An unexpected error occurred" };
-    }
-  };
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      })
+    );
 
-  const signUp = async (email: string, password: string) => {
-    try {
-      const { error } = await supabase.auth.signUp({
+  const signInWithOtp = (email: string) =>
+    handleAsyncOperation(() =>
+      supabase.auth.signInWithOtp({
         email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-      return { error: error?.message };
-    } catch (error) {
-      return { error: "An unexpected error occurred" };
-    }
-  };
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      })
+    );
 
-  const signInWithOtp = async (email: string) => {
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-      return { error: error?.message };
-    } catch (error) {
-      return { error: "An unexpected error occurred" };
-    }
-  };
+  const signInWithMagicLink = signInWithOtp;
 
-  const signInWithMagicLink = async (email: string) => {
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-      return { error: error?.message };
-    } catch (error) {
-      return { error: "An unexpected error occurred" };
-    }
-  };
-
-  const signInWithGoogle = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
+  const signInWithGoogle = () =>
+    handleAsyncOperation(() =>
+      supabase.auth.signInWithOAuth({
         provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-      return { error: error?.message };
-    } catch (error) {
-      return { error: "An unexpected error occurred" };
-    }
-  };
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
+      })
+    );
 
-  const verifyOtp = async (email: string, token: string) => {
-    try {
-      const { error } = await supabase.auth.verifyOtp({
-        email,
-        token,
-        type: "email",
-      });
-      return { error: error?.message };
-    } catch (error) {
-      return { error: "An unexpected error occurred" };
-    }
-  };
+  const verifyOtp = (email: string, token: string) =>
+    handleAsyncOperation(() =>
+      supabase.auth.verifyOtp({ email, token, type: "email" })
+    );
 
   const signOut = async () => {
     await supabase.auth.signOut();
   };
 
   const refreshSession = async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.refreshSession();
-    setSession(session);
-    setUser(session?.user ?? null);
+    const { data: { session } } = await supabase.auth.refreshSession();
+    updateSession(session);
   };
 
   return (

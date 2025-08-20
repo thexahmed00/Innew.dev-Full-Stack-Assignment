@@ -70,7 +70,7 @@ export function SignUpForm() {
 
       toast.success("Check your email to confirm your account!");
       setAuthMethod("otp");
-    } catch (err) {
+    } catch {
       toast.error("An unexpected error occurred");
     } finally {
       setIsLoading(false);
@@ -95,7 +95,7 @@ export function SignUpForm() {
       setTimeout(() => {
         router.push("/dashboard");
       }, 100);
-    } catch (err) {
+    } catch {
       toast.error("An unexpected error occurred");
     } finally {
       setIsLoading(false);
@@ -113,7 +113,7 @@ export function SignUpForm() {
         setIsLoading(false);
       }
       // Note: loading will continue until redirect happens
-    } catch (err) {
+    } catch {
       toast.error("An unexpected error occurred");
       setIsLoading(false);
     }

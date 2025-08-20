@@ -65,13 +65,19 @@ export const webhookHandler = (async (req: express.Request, res: express.Respons
         processed = true;
         break;
       case 'invoice.payment_succeeded':
-        console.log('📝 Handling invoice payment succeeded...');
+        console.log('📝 Handling invoice payment succeeded...')
         await StripeService.handleInvoicePaymentSucceeded(event.data.object);
         processed = true;
         break;
+
       case 'invoice.payment_failed':
         console.log('📝 Handling invoice payment failed...');
         await StripeService.handleInvoicePaymentFailed(event.data.object);
+        processed = true;
+        break;
+      case 'invoice.created':
+        console.log('📝 Handling invoice created...')
+        // await StripeService.handleInvoiceCreated(event.data.object);
         processed = true;
         break;
 
