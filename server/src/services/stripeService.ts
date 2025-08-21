@@ -236,6 +236,7 @@ export class StripeService {
 
       // Notify user via email
       const user = await UserModel.findById(subscription.user_id);
+      console.log("user id", subscription.user_id);
       if (!user) {
         console.warn(`⚠️ No user found for subscription ${subscriptionId}. Cannot send welcome email.`);
         return;
@@ -312,7 +313,15 @@ export class StripeService {
 
       await SubscriptionModel.updateByStripeId(subscriptionId, update);
 
-      const user = await UserModel.findById(stripeSubscription.metadata.user_id);
+      // Get user through subscription -> customer relationship (same pattern as handleSubscriptionCreated)
+      const customerId = stripeSubscription.customer;
+      const subscription = await SubscriptionModel.findByStripeCustomerId(customerId);
+      if (!subscription) {
+        console.warn(`⚠️ No subscription found for customer ${customerId}. Cannot send update email.`);
+        return;
+      }
+
+      const user = await UserModel.findById(subscription.user_id);
       if (!user) {
         console.warn(`⚠️ No user found for subscription ${subscriptionId}. Cannot send update email.`);
         return;
@@ -687,6 +696,9 @@ export class StripeService {
       });
 
       console.log(`✅ Subscription reactivated: ${subscription.stripe_subscription_id}`);
+
+
+
     } catch (error: any) {
       if (error instanceof CustomError) {
         throw error;
@@ -756,7 +768,6 @@ export class StripeService {
   static async handleInvoicePaymentSucceeded(invoice: any): Promise<void> {
     try {
 
-      console.log('📄 wwwwww Handling invoice payment succeeded event');
       const subscriptionId = invoice.parent.subscription_details.subscription as string;
 
       if (subscriptionId) {

@@ -18,6 +18,8 @@ import { ChevronDown, Crown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { type Subscription, billingService } from "@/lib/billing";
 
+
+
 interface TopBarProps {
   className?: string;
   activeTab?: string;
@@ -70,6 +72,12 @@ export function TopBar({
         return "Dashboard";
     }
   };
+
+  const onTabChange = (tab: string) => {
+    const params = new URLSearchParams(window.location.search);
+    params.set("page", tab);
+    window.history.replaceState({}, "", `?${params.toString()}`);
+  }
 
   const handleCurrencyChange = (currency: string) => {
     setSelectedCurrency(currency);
@@ -189,11 +197,11 @@ export function TopBar({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onTabChange('profile')}>
               <span className="mr-2">👤</span>
               Profile
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onTabChange('profile')}>
               <span className="mr-2">✏️</span>
               Edit Profile
             </DropdownMenuItem>
