@@ -7,6 +7,7 @@ import { DashboardContent } from "@/components/dashboard/dashboard-content";
 import { UsersContent } from "@/components/dashboard/users-content";
 import { DocumentsContent } from "@/components/dashboard/documents-content";
 import { SettingsContent } from "@/components/dashboard/settings-content";
+import { ProfileContent } from "@/components/dashboard/profile-content";
 import { TopBar } from "@/components/dashboard/top-bar";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { ProtectedRoute } from "@/components/auth/protected-route";
@@ -73,6 +74,7 @@ export default function DashboardPage() {
       dashboard: <DashboardContent {...dashboardProps} />,
       users: <UsersContent {...contentProps} />,
       documents: <DocumentsContent {...contentProps} />,
+      profile: <ProfileContent />,
       settings: <SettingsContent {...contentProps} />,
     };
 

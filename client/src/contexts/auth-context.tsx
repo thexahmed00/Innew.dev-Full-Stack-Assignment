@@ -18,6 +18,7 @@ interface AuthContextType {
   verifyOtp: (email: string, token: string) => Promise<AuthResult>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -99,6 +100,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     updateSession(session);
   };
 
+  const refreshUser = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    updateSession(session);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -113,6 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         verifyOtp,
         signOut,
         refreshSession,
+        refreshUser,
       }}
     >
       {children}

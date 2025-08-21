@@ -60,6 +60,8 @@ export function TopBar({
         return "Users Management";
       case "documents":
         return "Documents";
+      case "profile":
+        return "Profile Settings";
       case "billing":
         return "Billing & Subscription";
       case "settings":

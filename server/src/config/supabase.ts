@@ -16,6 +16,9 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 export const TABLES = {
   USERS: "users",
   POSTS: "posts",
+  FILES: "files",
+  SUBSCRIPTIONS: "subscriptions",
+  WEBHOOK_EVENTS: "webhook_events",
 } as const;
 
 // RLS (Row Level Security) policies

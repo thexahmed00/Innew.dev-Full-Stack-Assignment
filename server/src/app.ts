@@ -8,6 +8,7 @@ import dotenv from "dotenv";
 import userRoutes from "./routes/userRoutes";
 import postRoutes from "./routes/postRoutes";
 import stripeRoutes, { webhookHandler } from "./routes/stripeRoutes";
+import fileRoutes from "./routes/fileRoutes";
 
 // Import middleware
 import { globalErrorHandler, notFoundHandler } from "./utils/errorHandler";
@@ -61,6 +62,7 @@ app.get("/api/status", (req, res) => {
 app.use("/api/users", userRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/stripe", stripeRoutes);
+app.use("/api/files", fileRoutes);
 
 // Welcome endpoint
 app.get("/", (req, res) => {

@@ -24,15 +24,20 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.872.0",
     "@prisma/client": "^6.14.0",
     "@supabase/supabase-js": "^2.54.0",
+    "@types/multer": "^2.0.0",
+    "@types/sharp": "^0.31.1",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "helmet": "^7.1.0",
     "morgan": "^1.10.0",
+    "multer": "^2.0.2",
     "prisma": "^6.14.0",
     "resend": "^6.0.1",
+    "sharp": "^0.34.3",
     "stripe": "^14.25.0"
   },
   "devDependencies": {

@@ -23,6 +23,7 @@ import {
   ChevronLeft,
   ChevronRight,
   User,
+  UserCircle,
   ChevronDown,
   ChevronUp,
   Edit,
@@ -130,6 +131,12 @@ export function Sidebar({ className, activeTab, onTabChange, refreshTrigger }: S
       title: "Documents",
       icon: FileText,
       href: "/dashboard/documents",
+    },
+    {
+      id: "profile",
+      title: "Profile",
+      icon: UserCircle,
+      href: "/dashboard/profile",
     },
     {
       id: "billing",
@@ -299,7 +306,7 @@ export function Sidebar({ className, activeTab, onTabChange, refreshTrigger }: S
             >
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onTabChange('profile')}>
                 <Edit className="mr-2 h-4 w-4" />
                 Edit Profile
               </DropdownMenuItem>

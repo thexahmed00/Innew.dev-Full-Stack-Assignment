@@ -75,6 +75,36 @@ export interface File {
   updated_at: string;
 }
 
+// File creation input type
+export interface FileCreateInput {
+  filename: string;
+  original_name: string;
+  mime_type: string;
+  size: number;
+  storage_path: string;
+  public_url?: string;
+  user_id: string;
+  status?: 'ACTIVE' | 'DELETED' | 'QUARANTINED';
+}
+
+// File update input type
+export interface FileUpdateInput {
+  filename?: string;
+  original_name?: string;
+  mime_type?: string;
+  size?: number;
+  storage_path?: string;
+  public_url?: string;
+  status?: 'ACTIVE' | 'DELETED' | 'QUARANTINED';
+}
+
+// File upload result type
+export interface FileUploadResult {
+  file: File;
+  url: string;
+  success: boolean;
+}
+
 export interface WebhookEvent {
   id: string;
   stripe_event_id: string;
